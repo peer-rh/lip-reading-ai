@@ -67,18 +67,17 @@ def main():
             for j, instance in tqdm(enumerate(instances), leave=False, desc="Instance", total=len(instances)):
                 path = os.path.join("data/dataset/dataset", person_idx, "words", word, instance)
                 img_paths = glob.glob(path + "/color*")
-                imgs = []
+                os.mkdir(f"data/prepared_data/{word}/{i*10+j+1}")
                 for k, img_path in enumerate(img_paths):
                     img = cv2.imread(img_path)
                     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) 
                     img = crop_image(img)
                     if img is not None:
                         img = add_padding(img)
-                        imgs.append(img)
+                        cv2.imwrite(f"data/prepared_data/{word}/{i*10+j+1}/{k}.jpg", img)
                     else:
-                        logging.warning(f"Frame {k} for instance {j} of word {word} for person {person_idx} not added to GIF")
+                        logging.warning(f"Frame {k} for instance {j} of word {word} for person {person_idx} not saved")
                 # Saving it as a gif for easier tf loading
-                imageio.mimsave(f"data/prepared_data/{word}/{i*10+j+1}.gif", imgs)
                 logging.debug(f"Successfuly saved data/prepared_data/{word}/{i*10+j+1}.gif")
             logging.info(f"Finished Word: {word} {words[word_idx]}") 
         logging.info(f"Finished Person: {person_idx}") 

@@ -10,43 +10,8 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose', color_scheme='Linux', call_
 
 
 IMG_SIZE = 64
-MAX_SEQ_LENGTH = 20
-NUM_FEATURES = 1024
-
-def build_feature_extractor():
-    feature_extractor = Sequential([
-        layers.Conv2D(32, (3,3), activation="relu", input_shape=(IMG_SIZE, IMG_SIZE, 1)),
-        layers.MaxPool2D(),
-        layers.Conv2D(64, (3,3), activation='relu'),
-        layers.MaxPool2D(),
-        layers.Conv2D(64, (3,3), activation="relu"),
-        layers.MaxPool2D(),
-        layers.Flatten(),
-        layers.Dense(NUM_FEATURES, activation="relu")
-    ])
-    return feature_extractor
-
-class FeatureExtractor(layers.Layer):
-    def __init__(self) -> None:
-        super().__init__()
-        self.conv1 = layers.Conv2D(32, (3,3), activation="relu", input_shape=(IMG_SIZE, IMG_SIZE, 1))
-        self.maxPool = layers.MaxPool2D()
-        self.flatten = layers.Flatten()
-        self.conv2 = layers.Conv2D(64, (3,3), activation='relu')
-        self.conv3 = layers.Conv2D(64, (3,3), activation="relu")
-        self.dense1 = layers.Dense(NUM_FEATURES, activation="relu")
-    
-    def call(self, x):
-        n_seq = x.shape[0]
-        seq_len = x.shape[1]
-        x = tf.squeeze(x, 1)
-        x = self.maxPool(self.conv1(x))
-        x = self.maxPool(self.conv2(x))
-        x = self.maxPool(self.conv3(x))
-        x = self.flatten(x)
-        x = self.dense1(x)
-        return tf.reshape(x, (n_seq, seq_len,  NUM_FEATURES))
-
+MAX_SEQ_LENGTH = 25
+NUM_FEATURES = 128
 
 class PositionalEmbedding(layers.Layer):
     def __init__(self, sequence_length, output_dim):
@@ -85,10 +50,8 @@ class TransformerEncoder(layers.Layer):
         self.layernorm_2 = layers.LayerNormalization()
 
     def call(self, inputs, mask=None):
-        # TODO: Solve why not working
-        # if mask is not None:
-        #     mask = mask[:, tf.newaxis, :]
-        print(inputs)
+        if mask is not None:
+            mask = mask[:, tf.newaxis, :]
         attention_output = self.attention(inputs, inputs, attention_mask=mask)
         proj_input = self.layernorm_1(inputs + attention_output)
         proj_output = self.dense_proj(proj_input)
@@ -99,9 +62,8 @@ def get_compiled_model(dense_dim=4, num_heads=1):
     embed_dim = NUM_FEATURES
     classes = 10
 
-    inputs = keras.Input(shape=(None, 64, 64, 1))
-    x = FeatureExtractor()(inputs)
-    x = PositionalEmbedding(sequence_len, embed_dim)(x)
+    inputs = keras.Input(shape=(None, None))
+    x = PositionalEmbedding(sequence_len, embed_dim)(inputs)
     x = TransformerEncoder(embed_dim, dense_dim, num_heads)(x)
     x = layers.GlobalMaxPooling1D()(x)
     x = layers.Dropout(0.5)(x)

@@ -1,3 +1,8 @@
 data/*
 __pycache__/*
 shape_predictor_68_face_landmarks.dat
+imgs/*
+ae.h5
+tensorboard_logs/*
+checkpoints_ae/*
+checkpoints/*
