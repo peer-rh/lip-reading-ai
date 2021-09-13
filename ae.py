@@ -1,8 +1,11 @@
+from tensorflow.python.ops.gen_dataset_ops import model_dataset
 from load_data_ae import load_data
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers, Sequential
 import matplotlib.pyplot as plt
+from tensorflow.keras import backend as K
+from tensorflow.python.keras.engine import data_adapter
 
 
 IMG_SIZE = 64
@@ -52,19 +55,15 @@ class TensorBoardImage(keras.callbacks.Callback):
     def __init__(self, model, data):
         super().__init__() 
         self.model = model
-        self.data = data
+        self.data = data.batch(16)
+        self.writer = tf.summary.create_file_writer("tensorboard_logs/")
 
-    def on_batch_end(self, epoch, logs={}):
-        # Load image
-        img = self.data.take(1)
-        # Do something to the image
-        recon_img = self.model(img)
-        summary = tf.Summary(value=[tf.Summary.Value(tag="Reconstructed_img", image=recon_img),
-                                    tf.Summary.Value(tag="Img", image=img)])
-        writer = tf.summary.FileWriter('./tensorboard_logs')
-        writer.add_summary(summary, epoch)
-        writer.close()
-
+    def on_batch_end(self, batch, logs={}):
+        if batch % 100 == 0:
+            with self.writer.as_default():
+                for imgs, _ in self.data.take(1):
+                    tf.summary.image("Reconstructed Images", self.model.predict(imgs),step=batch)
+                    tf.summary.image("Images", imgs, step=batch)
         return
 
 def main():
@@ -78,20 +77,21 @@ def main():
     train_ds, val_ds = load_data()
     loss_fn = keras.losses.BinaryCrossentropy()
     optimizer = keras.optimizers.Adam(learning_rate=1e-3)
-    model.compile(optimizer=optimizer, loss=loss_fn)
     filepath = "checkpoints_ae/"
     checkpoint = keras.callbacks.ModelCheckpoint(
         filepath, save_weights_only=True, save_best_only=True, verbose=1
     )
     tensorboard_img = TensorBoardImage(model, val_ds)
     tensorboard_callback = keras.callbacks.TensorBoard(log_dir="./tensorboard_logs")
+    model.compile(optimizer=optimizer, loss=loss_fn)
+    
 
 
     train_ds, val_ds = load_data()
 
     history = model.fit(
         train_ds.batch(32),
-        epochs=5,
+        epochs=2,
         callbacks=[checkpoint, tensorboard_callback,tensorboard_img ],
         validation_data=val_ds.batch(32),
     )

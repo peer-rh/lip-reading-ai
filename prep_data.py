@@ -1,15 +1,17 @@
+import time
 import cv2
 import dlib
 import numpy as np
 import os
 import shutil
-import glob
 import imutils
 from imutils import face_utils
-from tqdm import tqdm
-import imageio
-
+import tqdm
+import pickle
+import multiprocessing
 import logging
+import glob
+
 
 # logging.basicConfig(filename='run.log', level=logging.DEBUG)
 logging.basicConfig(filename='data_prep_run.log', level=logging.INFO)
@@ -19,12 +21,7 @@ logging.info("===============================")
 
 IMG_SIZE = 64
 
-people = os.listdir("data/dataset/dataset")
-folder_enum = ['01','02','03','04','05','06','07','08', '09', '10']
-instances = ['01','02','03','04','05','06','07','08', '09', '10']
-
-words = ['Begin', 'Choose', 'Connection', 'Navigation', 'Next', 'Previous', 'Start', 'Stop', 'Hello', 'Web']          
-words_di = {i:words[i] for i in range(len(words))}
+# TODO: Add continue Algorithm
 
 detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor('./shape_predictor_68_face_landmarks.dat')
@@ -59,47 +56,63 @@ def add_padding(img):
     base[height_top:height_top+img.shape[0], width_left:width_left+img.shape[1]]=img
     return base
 
+def thread_main(i):
+    person_id = i.split("/")[-2]
+    video_id = i.split("/")[-1].split(".")[0]
+    video_path = os.path.join("data/trainval", person_id, video_id+".mp4")
+    label_path = os.path.join("data/trainval", person_id, video_id+".txt")
+    os.mkdir(f"data/cropped/{person_id}_{video_id}")
 
+
+    # Read and Crop Images
+    vidcap = cv2.VideoCapture(video_path)
+    success,image = vidcap.read()
+    count = 0
+    while success:
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) 
+        image = crop_image(image)
+        if image is not None:
+            image = add_padding(image)
+            cv2.imwrite(f"data/cropped/{person_id}_{video_id}/{count}.jpg", image)
+        else:
+            logging.warning(f"Frame {count} for id {person_id}/{video_id} could not be saved")
+        success,image = vidcap.read()
+        count += 1
+
+    with open(label_path) as f:
+        label = f.readline()[7:]
+
+    logging.debug(f"Successfuly saved data/cropped/{person_id}_{video_id}/")
+    return f"{person_id}_{video_id}", label
 
 def main():
-    for i, person_idx in tqdm(enumerate(people), desc="Person", total=len(people)):
-        for word_idx, word in tqdm(enumerate(folder_enum), leave=False, desc="Word", total=len(folder_enum)):
-            for j, instance in tqdm(enumerate(instances), leave=False, desc="Instance", total=len(instances)):
-                path = os.path.join("data/dataset/dataset", person_idx, "words", word, instance)
-                img_paths = glob.glob(path + "/color*")
-                os.mkdir(f"data/prepared_data/{word}/{i*10+j+1}")
-                for k, img_path in enumerate(img_paths):
-                    img = cv2.imread(img_path)
-                    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) 
-                    img = crop_image(img)
-                    if img is not None:
-                        img = add_padding(img)
-                        cv2.imwrite(f"data/prepared_data/{word}/{i*10+j+1}/{k}.jpg", img)
-                    else:
-                        logging.warning(f"Frame {k} for instance {j} of word {word} for person {person_idx} not saved")
-                # Saving it as a gif for easier tf loading
-                logging.debug(f"Successfuly saved data/prepared_data/{word}/{i*10+j+1}.gif")
-            logging.info(f"Finished Word: {word} {words[word_idx]}") 
-        logging.info(f"Finished Person: {person_idx}") 
+    paths = glob.glob("data/trainval/**/*.mp4")[:5000]
+    pool = multiprocessing.Pool(10)
+    labels_file = open("data/cropped/labels.csv", "a")
+
+    pbar = tqdm.tqdm(total=len(paths))
+    def update(results):
+        pbar.update(1)
+        labels_file.write(f"{results[0]}:  {results[1]}")
+
+    for i in paths:
+        pool.apply_async(thread_main, args=(i,), callback=update)
+    pool.close()
+    pool.join()
+
+    logging.info(f"Finished!") 
                 
 if __name__=="__main__":
-    if os.path.exists("data/prepared_data"):
-        print("The prepared_data folder already exists.")
+    if os.path.exists("data/cropped"):
+        print("The cropped folder already exists.")
         answered = False
         while not answered:
             ans = input("Delete and Continue? (y/n)  ").lower()
             if ans == "y":
-                shutil.rmtree("data/prepared_data")
-                os.mkdir("data/prepared_data")
+                shutil.rmtree("data/cropped")
+                os.mkdir("data/cropped")
                 answered = True
             elif ans == "n":
                 exit()
-    else:
-        os.mkdir("data/prepared_data")
-        answered = True
-
-    for word in folder_enum:
-        os.mkdir(f"data/prepared_data/{word}/") 
-
     main()
 

@@ -57,6 +57,11 @@ class TransformerEncoder(layers.Layer):
         proj_output = self.dense_proj(proj_input)
         return self.layernorm_2(proj_input + proj_output)
 
+class TransformerDecoder(layers.Layer):
+    # TODO
+    def __init__(self, embed_dim, latent_dim, num_heads):
+        super(TransformerDecoder, self).__init__()
+
 def get_compiled_model(dense_dim=4, num_heads=1):
     sequence_len = MAX_SEQ_LENGTH
     embed_dim = NUM_FEATURES
