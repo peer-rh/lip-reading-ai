@@ -3,38 +3,45 @@ from tensorflow import keras
 import numpy as np
 import os
 from tqdm import tqdm
-
+import pandas as pd
+from tensorflow.keras.layers import TextVectorization
+import pickle
 
 model = keras.models.load_model('ae.h5')
-model.summary()
 enc = keras.Model(model.get_layer("sequential").input, model.get_layer("sequential").output)
 
-features_ds = []
-labels_ds = []
-
 def decode_img(img_path):
-    img = tf.io.decode_jpeg(tf.io.read_file(img_path))
+    img = tf.io.decode_gif(tf.io.read_file(img_path))
     # Resize and make grayscale
-    return tf.reshape(tf.image.resize(img, [64, 64])[:,:,0], (1, 64,64,1)) / 255
+    return tf.expand_dims(tf.image.resize(img, [64, 64])[:,:,:,0], 3) / 255
 
-data_dir = "data/prepared_data_backup/"
+MAX_SEQ_LEN = 155
+data = pd.read_csv("data/cropped/labels.csv", sep=":  ", names=["ids", "label"])
+file_names = "data/cropped/" + data.ids + ".gif"
+labels = data.label.str.lower()
 
-for i, class_name in enumerate(tqdm(os.listdir(data_dir))):
-    for j, sample in enumerate(tqdm(os.listdir(os.path.join(data_dir, class_name)))):
-        this_features = None
-        for k, img_name in enumerate(os.listdir(os.path.join(data_dir, class_name, sample))):
-            img_path = os.path.join(data_dir, class_name, sample, img_name)
-            features = enc(decode_img(img_path)).numpy()
-            if k == 0:
-                this_features = np.array(features)
-            else:
-                this_features = np.concatenate((this_features, features))
-        new_features = np.zeros((25, 128))
-        new_features[-len(this_features):] = this_features
-        features_ds.append(new_features)
-        labels_ds.append(i)
+vocab_size = len(set(" ".join([i for i in labels]).split()))
+print(vocab_size)
 
-features_ds = np.array(features_ds)
-print(features_ds.shape)
-np.save("features_ds", features_ds)
-np.save("labels_ds", labels_ds)
+dataset = tf.data.Dataset.from_tensor_slices((file_names, labels))
+en_vec = TextVectorization(
+    max_tokens=vocab_size, output_mode="int", output_sequence_length=MAX_SEQ_LEN,
+)
+en_vec.adapt(labels)
+
+pickle.dump({
+    "config": en_vec.get_config(),
+    'weights': en_vec.get_weights()}
+    , open("en_vec.pkl", "wb"))
+
+
+def process_image(video_id, label):
+    this_features = enc(decode_img(video_id))   
+    paddings = [[MAX_SEQ_LEN-tf.shape(this_features)[0], 0], [0, 0]]
+    features = tf.pad(this_features, paddings)
+    vec_label = en_vec(label)
+    return {"encoder_inputs": features, "decoder_inputs": vec_label[:-1]}, vec_label[1:]
+
+dataset = dataset.map(process_image)
+
+tf.data.experimental.save(dataset, "dataset.tfdata")

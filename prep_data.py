@@ -1,6 +1,7 @@
 import time
 import cv2
 import dlib
+import imageio
 import numpy as np
 import os
 import shutil
@@ -20,6 +21,7 @@ logging.info("======= Started New Run =======")
 logging.info("===============================")
 
 IMG_SIZE = 64
+MIN_SEQ_LEN = 1
 
 # TODO: Add continue Algorithm
 
@@ -61,19 +63,20 @@ def thread_main(i):
     video_id = i.split("/")[-1].split(".")[0]
     video_path = os.path.join("data/trainval", person_id, video_id+".mp4")
     label_path = os.path.join("data/trainval", person_id, video_id+".txt")
-    os.mkdir(f"data/cropped/{person_id}_{video_id}")
 
 
     # Read and Crop Images
     vidcap = cv2.VideoCapture(video_path)
     success,image = vidcap.read()
     count = 0
+    images_saved = 0
+    imgs = []
     while success:
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) 
         image = crop_image(image)
         if image is not None:
             image = add_padding(image)
-            cv2.imwrite(f"data/cropped/{person_id}_{video_id}/{count}.jpg", image)
+            imgs.append(image)
         else:
             logging.warning(f"Frame {count} for id {person_id}/{video_id} could not be saved")
         success,image = vidcap.read()
@@ -81,19 +84,22 @@ def thread_main(i):
 
     with open(label_path) as f:
         label = f.readline()[7:]
-
-    logging.debug(f"Successfuly saved data/cropped/{person_id}_{video_id}/")
-    return f"{person_id}_{video_id}", label
+    if len(imgs) > MIN_SEQ_LEN:
+        imageio.mimsave(f"data/cropped/{person_id}_{video_id}.gif", imgs)
+        logging.debug(f"Successfuly saved data/cropped/{person_id}_{video_id}.gif")
+        return f"{person_id}_{video_id}", label
+    return None
 
 def main():
-    paths = glob.glob("data/trainval/**/*.mp4")[:5000]
+    paths = glob.glob("data/trainval/**/*.mp4")[:500]
     pool = multiprocessing.Pool(10)
     labels_file = open("data/cropped/labels.csv", "a")
 
     pbar = tqdm.tqdm(total=len(paths))
     def update(results):
         pbar.update(1)
-        labels_file.write(f"{results[0]}:  {results[1]}")
+        if results is not None:
+            labels_file.write(f"{results[0]}:  {results[1]}")
 
     for i in paths:
         pool.apply_async(thread_main, args=(i,), callback=update)

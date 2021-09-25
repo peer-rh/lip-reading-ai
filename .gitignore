@@ -6,3 +6,4 @@ ae.h5
 tensorboard_logs/*
 checkpoints_ae/*
 checkpoints/*
+dataset.tfdata/*

@@ -57,22 +57,56 @@ class TransformerEncoder(layers.Layer):
         proj_output = self.dense_proj(proj_input)
         return self.layernorm_2(proj_input + proj_output)
 
+    def compute_mask(self, inputs, mask=None):
+        return tf.math.not_equal(inputs, 0)
+
 class TransformerDecoder(layers.Layer):
-    # TODO
     def __init__(self, embed_dim, latent_dim, num_heads):
         super(TransformerDecoder, self).__init__()
+        self.embed_dim = embed_dim
+        self.latent_dim = latent_dim
+        self.num_heads = num_heads
 
-def get_compiled_model(dense_dim=4, num_heads=1):
+        self.attention = layers.MultiHeadAttention(
+            num_heads=num_heads, key_dim=embed_dim
+        )
+        self.dense_proj = keras.Sequential(
+            [layers.Dense(latent_dim, activation=tf.nn.gelu), layers.Dense(embed_dim),]
+        )
+        self.layernorm_1 = layers.LayerNormalization()
+        self.layernorm_2 = layers.LayerNormalization()
+    
+    def call(self, inputs, mask=None):
+        if mask is not None:
+            mask = mask[:, tf.newaxis, :]
+        attention_output = self.attention(inputs, inputs, attention_mask=mask)
+        proj_input = self.layernorm_1(inputs + attention_output)
+        proj_output = self.dense_proj(proj_input)
+        return self.layernorm_2(proj_input + proj_output)
+
+    def get_causal_attention_mask(self, inputs):
+        input_shape = tf.shape(inputs)
+        batch_size, sequence_length = input_shape[0], input_shape[1]
+        i = tf.range(sequence_length)[:, tf.newaxis]
+        j = tf.range(sequence_length)
+        mask = tf.cast(i >= j, dtype="int32")
+        mask = tf.reshape(mask, (1, input_shape[1], input_shape[1]))
+        mult = tf.concat(
+            [tf.expand_dims(batch_size, -1), tf.constant([1, 1], dtype=tf.int32)],
+            axis=0,
+        )
+        return tf.tile(mask, mult)
+
+def get_compiled_model(dense_dim=256, num_heads=8, vocab_size=1354):
     sequence_len = MAX_SEQ_LENGTH
     embed_dim = NUM_FEATURES
-    classes = 10
 
     inputs = keras.Input(shape=(None, None))
     x = PositionalEmbedding(sequence_len, embed_dim)(inputs)
     x = TransformerEncoder(embed_dim, dense_dim, num_heads)(x)
-    x = layers.GlobalMaxPooling1D()(x)
+    x = TransformerDecoder(sequence_len, dense_dim, num_heads)(x)
     x = layers.Dropout(0.5)(x)
-    outputs = layers.Dense(classes, activation="softmax")(x)
+    outputs = layers.Dense(vocab_size, activation="softmax")(x)
     model = keras.Model(inputs, outputs)
 
     model.compile(
