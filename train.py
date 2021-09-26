@@ -1,7 +1,6 @@
+from typing import Tuple
 import tensorflow as tf
 from tensorflow import keras
-import numpy as np
-from tensorflow.python.ops.gen_array_ops import unique
 from tensorflow.keras.layers import TextVectorization
 import pickle
 
@@ -14,7 +13,8 @@ checkpoint = keras.callbacks.ModelCheckpoint(
     filepath, save_weights_only=True, save_best_only=True, verbose=1
 )
 
-def load_feature_data():
+
+def load_feature_data() -> Tuple[tf.data.Dataset, tf.data.Dataset]:
     ds = tf.data.experimental.load("./dataset.tfdata")
     ds = ds.shuffle(1000)
     ds_val = ds.take(len(ds)//5).batch(32)
@@ -22,11 +22,12 @@ def load_feature_data():
     return ds_train, ds_val
 
 
-def load_vec():
+def load_vec() -> TextVectorization:
     from_disk = pickle.load(open("en_vec.pkl", "rb"))
     new_v = TextVectorization.from_config(from_disk['config'])
     new_v.set_weights(from_disk['weights'])
     return new_v
+
 
 ds_train, ds_val = load_feature_data()
 en_vec = load_vec()
@@ -37,4 +38,4 @@ history = model.fit(
     epochs=100,
     callbacks=[checkpoint],
     validation_data=ds_val
-) 
+)
