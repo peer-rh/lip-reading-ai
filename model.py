@@ -1,16 +1,11 @@
+from typing import Any
 import tensorflow as tf
 from tensorflow.keras import layers
 from tensorflow import keras
 
-import sys
-from IPython.core import ultratb
-sys.excepthook = ultratb.FormattedTB(
-    mode='Verbose', color_scheme='Linux', call_pdb=False)
-
-
 IMG_SIZE = 64
 MAX_SEQ_LENGTH = 160
-NUM_FEATURES = 128
+NUM_FEATURES = 40
 
 
 class PositionalEmbedding(layers.Layer):
@@ -37,7 +32,7 @@ class PositionalEmbedding(layers.Layer):
 
 
 class PositionalEmbeddingText(layers.Layer):
-    def __init__(self, sequence_length: int, vocab_size: int, embed_dim: int, **kwargs) -> None:
+    def __init__(self, sequence_length: int, vocab_size: int, embed_dim: int, **kwargs: Any) -> None:
         super(PositionalEmbeddingText, self).__init__(**kwargs)
         self.token_embeddings = layers.Embedding(
             input_dim=vocab_size, output_dim=embed_dim
@@ -56,12 +51,12 @@ class PositionalEmbeddingText(layers.Layer):
         embedded_positions = self.position_embeddings(positions)
         return embedded_tokens + embedded_positions
 
-    def compute_mask(self, inputs: tf.Tensor, mask=None) -> tf.Tensor:
+    def compute_mask(self, inputs: tf.Tensor, mask: tf.Tensor = None) -> tf.Tensor:
         return tf.math.not_equal(inputs, 0)
 
 
 class TransformerEncoder(layers.Layer):
-    def __init__(self, embed_dim, dense_dim, num_heads, **kwargs):
+    def __init__(self, embed_dim: int, dense_dim: int, num_heads: int, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.embed_dim = embed_dim
         self.dense_dim = dense_dim
@@ -76,7 +71,7 @@ class TransformerEncoder(layers.Layer):
         self.layernorm_1 = layers.LayerNormalization()
         self.layernorm_2 = layers.LayerNormalization()
 
-    def call(self, inputs, mask=None):
+    def call(self, inputs: tf.Tensor, mask: tf.Tensor = None) -> tf.Tensor:
         if mask is not None:
             mask = mask[:, tf.newaxis, :]
         attention_output = self.attention(inputs, inputs, attention_mask=mask)
@@ -84,12 +79,12 @@ class TransformerEncoder(layers.Layer):
         proj_output = self.dense_proj(proj_input)
         return self.layernorm_2(proj_input + proj_output)
 
-    def compute_mask(self, inputs, mask=None):
+    def compute_mask(self, inputs: tf.Tensor, mask: tf.Tensor = None) -> tf.Tensor:
         return tf.math.not_equal(inputs, 0)
 
 
 class TransformerDecoder(layers.Layer):
-    def __init__(self, embed_dim, latent_dim, num_heads, **kwargs):
+    def __init__(self, embed_dim: int, latent_dim: int, num_heads: int, **kwargs: Any) -> None:
         super(TransformerDecoder, self).__init__(**kwargs)
         self.embed_dim = embed_dim
         self.latent_dim = latent_dim
@@ -109,7 +104,7 @@ class TransformerDecoder(layers.Layer):
         self.layernorm_3 = layers.LayerNormalization()
         self.supports_masking = True
 
-    def call(self, inputs, encoder_outputs, mask=None):
+    def call(self, inputs: tf.Tensor, encoder_outputs: tf.Tensor, mask: tf.Tensor = None) -> tf.Tensor:
         causal_mask = self.get_causal_attention_mask(inputs)
         if mask is not None:
             padding_mask = tf.cast(mask[:, tf.newaxis, :], dtype="int32")
@@ -146,7 +141,7 @@ class TransformerDecoder(layers.Layer):
         return tf.tile(mask, mult)
 
 
-def get_compiled_model(dense_dim=256, num_heads=8, vocab_size=1354):
+def get_compiled_model(dense_dim: int = 256, num_heads: int = 8, vocab_size: int = 1354) -> keras.Model:
     sequence_len = MAX_SEQ_LENGTH
     embed_dim = NUM_FEATURES
 

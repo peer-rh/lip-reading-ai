@@ -8,3 +8,4 @@ checkpoints_ae/*
 .mypy_cache/*
 checkpoints/*
 dataset.tfdata/*
+data_prep_run.log
