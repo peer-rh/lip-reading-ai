@@ -1,9 +1,10 @@
-from typing import Dict, Tuple
-import tensorflow as tf
-import pandas as pd
-from tensorflow.keras.layers import TextVectorization
 import pickle
+from typing import Dict, Tuple
+
 import numpy as np
+import pandas as pd
+import tensorflow as tf
+from tensorflow.keras.layers import TextVectorization
 
 MAX_SEQ_LEN = 160
 
@@ -45,7 +46,7 @@ def get_dataset_and_vec() -> Tuple[tf.data.Dataset, TextVectorization, int]:
 
 
 if __name__ == "__main__":
-    ds, _ = get_dataset_and_vec()
+    ds, _, _ = get_dataset_and_vec()
     for i in ds.take(1):
         print(i[0]["decoder_inputs"].shape)
         print(i[0]["encoder_inputs"].shape)

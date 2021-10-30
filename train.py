@@ -11,6 +11,14 @@ checkpoint = keras.callbacks.ModelCheckpoint(
     filepath, save_weights_only=True, save_best_only=True, verbose=1
 )
 
+# Define Tensorboard as a Keras callback
+tensorboard = keras.callbacks.TensorBoard(
+    log_dir='.\logs',
+    histogram_freq=1,
+    update_freq=10,
+    write_images=True
+)
+
 
 def load_feature_data() -> Tuple[tf.data.Dataset, tf.data.Dataset, TextVectorization, int]:
     ds, en_vec, vocab_size = get_dataset_and_vec()
@@ -26,6 +34,6 @@ model = get_compiled_model(vocab_size=vocab_size)
 history = model.fit(
     ds_train,
     epochs=100,
-    callbacks=[checkpoint],
+    callbacks=[checkpoint, tensorboard],
     validation_data=ds_val
 )

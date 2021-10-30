@@ -1,15 +1,15 @@
+import glob
+import logging
+import multiprocessing
+import os
 from typing import Any, List, Tuple, Union
-from numpy.typing import NDArray
+
 import cv2
 import dlib
 import numpy as np
-import os
-from imutils import face_utils
 import tqdm
-import multiprocessing
-import logging
-import glob
-
+from imutils import face_utils
+from numpy.typing import NDArray
 
 logging.basicConfig(filename='data_prep_run.log', level=logging.DEBUG)
 logging.info("===============================")

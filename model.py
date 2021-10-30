@@ -1,7 +1,8 @@
 from typing import Any
+
 import tensorflow as tf
-from tensorflow.keras import layers
 from tensorflow import keras
+from tensorflow.keras import layers
 
 IMG_SIZE = 64
 MAX_SEQ_LENGTH = 160
